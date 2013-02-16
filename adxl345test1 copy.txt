@@ -1,0 +1,198 @@
+#include <avr/io.h>
+#include <util/twi.h> 
+#include <adxl_registers.h> 
+#include <util/delay_basic.h>
+#include <util/delay.h>
+
+
+
+#define F_CPU 8000000UL 
+
+#define sbi(sfr,bit) sfr|= _BV(bit)
+#define cbi(sfr,bit) sfr &= ~(_BV(bit))
+#define SLA_W 0x3A
+#define SLA_R 0x3B
+void transmit(unsigned char value);
+
+unsigned char twi_write(unsigned char register_address,unsigned char data);
+void twi_read(unsigned char register_address,unsigned char *data);
+
+int main()
+
+	{
+	
+	unsigned char data;
+	DDRA =0xFF;
+	DDRC = DDRC|0b00001100;
+	PORTC=0b00001111;
+
+	//UBRRH=0x00;
+    //UBRRL=0x33;  // 9600 baud rate got with a value of 51
+ //UCSRA=0x00;
+    //UCSRB=(1<<TXEN)|(1<<RXEN);
+    //UCSRC=(1<<URSEL)|(1<<UCSZ1)|(1<<UCSZ0);
+    ACSR=(1<<ACD);   //disabling analog comparator to save power
+	
+	UCSRA=0x02;
+	UCSRB=0x08;
+	UCSRC=0x86;
+	UBRRH=0x00;
+	UBRRL=0x33;	
+
+	TWBR = 32;
+	TWSR &= 0xFC;
+
+	/*TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_START);
+	//ERROR();
+	
+	TWDR = SLA_W;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_SLA_ACK );
+	//ERROR();
+	
+	TWDR = 0x1D;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_DATA_ACK);
+	//ERROR();
+	
+	TWDR = 0x00;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
+	{
+	sbi(PORTA,0);
+
+	}
+	//ERROR();
+	else
+	{
+	sbi(PORTA,1);
+	}
+
+
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+
+*/	
+	while(1)
+	{
+	twi_read(DATAX0,&data);
+	_delay_us(500);
+
+	transmit(data);
+
+
+
+	
+	}
+	
+	}
+
+void transmit(unsigned char value)
+{
+ while(!(UCSRA&(1<<UDRE)));
+ //PORTB=0b11111000;
+ UDR=value;
+}
+
+unsigned char twi_write(unsigned char register_address,unsigned char data)
+
+	{
+	unsigned char n=10;
+
+	send_start:
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if (((TWSR & 0xF8) != TW_START)&&n)
+	{
+	n--;
+	goto send_start;
+	}
+	if(!n)
+	{
+	return n;
+	}
+	//ERROR();
+	
+	n=10;
+
+	send_slave_add:
+
+	TWDR = SLA_W;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if (((TWSR & 0xF8) != TW_MT_SLA_ACK)&&n )
+	{
+	n--;
+	goto send_slave_add;
+	}
+	if(!n)
+	{
+	return n;
+	}
+	//ERROR();
+
+	n=10;	
+	TWDR = 0x1D;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_DATA_ACK);
+	
+	//ERROR();
+	
+	TWDR = 0x00;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_DATA_ACK);
+
+	
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+	return;
+	}
+
+void twi_read(unsigned char register_address,unsigned char *data)
+	{
+	
+
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_START);
+	//ERROR();
+	
+	TWDR = SLA_W;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_SLA_ACK );
+	//ERROR();
+	
+	TWDR = register_address;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MT_DATA_ACK);
+	//ERROR();
+	
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_START);
+
+	TWDR = SLA_R;
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MR_SLA_ACK );
+
+	TWCR = (1<<TWINT) | (1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	if ((TWSR & 0xF8) != TW_MR_DATA_NACK);
+
+	
+	*data=TWDR;
+
+
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+
+	
+
+	}
